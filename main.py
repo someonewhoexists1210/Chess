@@ -9,7 +9,9 @@ WIN = pygame.display.set_mode((WID,HEI))
 pygame.display.set_caption('Chess')
 
 
-abcs = 'abcdefgh'
+
+
+abcs = '123abcdefghij'
 
 boardpositions = {
 'a1': (0,350),
@@ -102,48 +104,196 @@ WKING = pygame.transform.scale(pygame.image.load('imgs/wking.png'), (50,50))
 
 
 
-
-
-
-
-
-
-
-
-
-pygame.display.update()
-
-
-WIN.blit(BROOK, boardpositions['a8'])
-WIN.blit(BROOK, boardpositions['h8'])
-WIN.blit(BKNIGHT, boardpositions['b8'])
-WIN.blit(BKNIGHT, boardpositions['g8'])
-WIN.blit(BBISHOP, boardpositions['c8'])
-WIN.blit(BBISHOP, boardpositions['f8'])
-WIN.blit(BQUEEN, boardpositions['d8'])
-WIN.blit(BKING, boardpositions['e8'])
-
-
-
-
-
+right = lambda x: abcs[abcs.index(x[0]) + 1] + x[1]
+left = lambda x: abcs[abcs.index(x[0]) - 1] + x[1]
+up = lambda x: x[0] + str(int(x[1])+1)
+down = lambda x: x[0] + str(int(x[1])-1)
 
 #Current pieces on board
 pieces = []
 
-
-def square_occupied(sq, isBlack =None):
+#Checks if any given square is occupied
+def square_occupied(sq, isBlack =None, returnpiece=False):
     if isBlack == None:
         for l in pieces:
             if l.square == sq:
+                if returnpiece:
+                    return l
                 return True
         return False
     else:
         for l in pieces:
             if l.square == sq:
                 if l.isBlack == isBlack:
+                    if returnpiece:
+                        return l
                     return True
         return False
+def diagonal(sq, piece=None):
+    if piece.worth == 1:
+        result = []
+        if piece.isBlack:
+            if sq[0] !='a':
+                sq1 = abcs[abcs.index(sq[0]) + 1]+str(int(sq[1])-1)
+                if square_occupied(sq1, False):
+                    result.append((sq1, ''))
+
+            if sq[0] != 'h':
+                sq2 = abcs[abcs.index(sq[0]) - 1]+str(int(sq[1])-1)
+                if square_occupied(sq2, False):
+                    result.append((sq2, ''))
+
+               
+            return result
+        else:
+            
+            if sq[0] !='a':
+                sq1 = abcs[abcs.index(sq[0]) - 1]+str(int(sq[1])+1)
+                if square_occupied(sq1, True):
+                    result.append((sq1, ''))
+
+            if sq[0] != 'h':
+                sq2 = abcs[abcs.index(sq[0]) + 1]+str(int(sq[1])+1)
+                if square_occupied(sq2, True):
+                    result.append((sq2, ''))
+
+               
+            return result
+            
+    elif piece.worth > 10:
+        return [abcs[abcs.index(sq[0]) + 1]+str(int(sq[1])+1),
+                abcs[abcs.index(sq[0]) + 1]+str(int(sq[1])-1),
+                abcs[abcs.index(sq[0]) - 1]+str(int(sq[1])+1),
+                abcs[abcs.index(sq[0]) - 1]+str(int(sq[1])-1)]
+            
+
+    tempsq = sq
+    tr = []
+    bl = []
+    tl = []
+    br = []
+    
+    # Check Top-Right Diagonal
+    while tempsq[0] != 'h' and tempsq[1] != '8':
+        tempsq = abcs[abcs.index(tempsq[0]) + 1]+str(int(tempsq[1])+1)
+        occupied = square_occupied(tempsq, returnpiece=True)
+        if occupied != False:
+            if piece.isBlack == occupied.isBlack:
+                break
+            else:
+                tr.append((tempsq, ''))
+                break
+        tr.append(tempsq)
+            
+    #Reset while loop
+    tempsq = sq
+
+    # Check Bottom-Left Diagonal
+    while tempsq[0] != 'a' and tempsq[1] != '1':
+        tempsq = abcs[abcs.index(tempsq[0]) - 1]+str(int(tempsq[1])-1)
+        occupied = square_occupied(tempsq, returnpiece=True)
+        if occupied != False:
+            if piece.isBlack == occupied.isBlack:
+                break
+            else:
+                bl.append((tempsq, ''))
+                break
+        bl.append(tempsq)
+
+
+    tempsq = sq
+    # Check Top-Left Diagonal
+    while tempsq[0] != 'a' and tempsq[1] != '8':
+        tempsq = abcs[abcs.index(tempsq[0]) - 1]+str(int(tempsq[1])+1)
+        occupied = square_occupied(tempsq, returnpiece=True)
+        if occupied != False:
+            if piece.isBlack == occupied.isBlack:
+                break
+            else:
+                tr.append((tempsq, ''))
+                break
+        tr.append(tempsq)
+
+    tempsq = sq
+
+    # Check Bottom-Right Diagonal
+    while tempsq[0] != 'h' and tempsq[1] != '1':
+        tempsq = abcs[abcs.index(tempsq[0]) + 1]+str(int(tempsq[1])-1)
+        occupied = square_occupied(tempsq, returnpiece=True)
+        if occupied != False:
+            if piece.isBlack == occupied.isBlack:
+                break
+            else:
+                tr.append((tempsq, ''))
+                break
+        tr.append(tempsq)
+
+    return tr + tl + br +bl
+def straight(sq, piece):
+    t = []
+    b = []
+    r = []
+    l = []
+
+
+    tempsq = sq
+    #Check File Ahead
+    while tempsq[1] != '8':
+        tempsq = tempsq[0] + str((int(tempsq[1])+1))
+        occupied = square_occupied(tempsq, returnpiece=True)
+        if occupied != False:
+            if piece.isBlack == occupied.isBlack:
+                break
+            else:
+                t.append((tempsq, ''))
+                break
+        t.append(tempsq)
+    
+
+    tempsq = sq
+    #Check File Below
+    while tempsq[1] != '1':
+        tempsq = tempsq[0] + str((int(tempsq[1])-1))
+        occupied = square_occupied(tempsq, returnpiece=True)
+        if occupied != False:
+            if piece.isBlack == occupied.isBlack:
+                break
+            else:
+                b.append((tempsq, ''))
+
+                break
+        b.append(tempsq)
+
+
+    tempsq = sq
+    #Check Row Right
+    while tempsq[0] != 'h':
+        tempsq = abcs[abcs.index(tempsq[0])+1] + tempsq[1]
+        occupied = square_occupied(tempsq, returnpiece=True)
+        if occupied != False:
+            if piece.isBlack == occupied.isBlack:
+                break
+            else:
+                r.append((tempsq, ''))
+
+                break
+        r.append(tempsq)
+
+
+    tempsq = sq
+    #Check File Ahead
+    while tempsq[0] != 'a':
+        tempsq = abcs[abcs.index(tempsq[0])-1] + tempsq[1]
+        occupied = square_occupied(tempsq, returnpiece=True)
+        if occupied != False:
+            if piece.isBlack == occupied.isBlack:
+                break
+            else:
+                l.append((tempsq, ''))
+                break
+        l.append(tempsq)
+    
+    return t + b + r + l
 
 class piece:
     def __init__(self, square, isBlack, img, worth):
@@ -160,8 +310,25 @@ class piece:
 
     def draw_moves(self):
         for x in self.moves:
-            pygame.draw.circle(WIN, (125,125,125), (boardpositions[x][0] + 25, boardpositions[x][1] + 25), 10)
-        pygame.display.update()
+            if type(x) is tuple:
+                pygame.draw.rect(WIN, (125,125,125), (boardpositions[x[0]][0] + 5, boardpositions[x[0]][1] + 5 , 40, 40))
+                pygame.draw.rect(WIN, (255,255,255), (boardpositions[x[0]][0] + 10, boardpositions[x[0]][1] + 10 , 30, 30))
+            else:
+                pygame.draw.circle(WIN, (125,125,125), (boardpositions[x][0] + 25, boardpositions[x][1] + 25), 10)
+
+    def remove_moves(self):
+        toremove = []
+        for l in self.moves:
+            if l not in boardpositions:
+                toremove.append(l)
+        for n in self.moves:
+            if square_occupied(n, self.isBlack):
+                toremove.append(n)
+        for n in toremove:
+            if n in self.moves:
+                self.moves.remove(n)
+        
+        
 
     def click(self, pos):
         x1 = pos[0]
@@ -174,8 +341,7 @@ class piece:
     def capture(self, capturedpiece, player):
         pieces.remove(capturedpiece)
         player.points += capturedpiece.worth
-        self.x, self.y = boardpositions[capturedpiece.square]
-    
+        self.x, self.y = boardpositions[capturedpiece.square] 
 class pawn(piece):
     def __init__(self, square, isBlack, img):
         super().__init__(square, isBlack, img, 1)
@@ -198,110 +364,69 @@ class pawn(piece):
         
         diags = diagonal(self.square, self)
         if diags != None:
-            try:
-                #Draw capture piece rect
-                pygame.draw.rect(WIN, (125,125,125), (boardpositions[diags[0]][0] + 5, boardpositions[diags[0]][1] + 5 , 40, 40))
-                pygame.draw.rect(WIN, (255,255,255), (boardpositions[diags[0]][0] + 10, boardpositions[diags[0]][1] + 10 , 30, 30))
-
-                
-                pygame.draw.rect(WIN, (125,255,125), (boardpositions[diags[1]][0] + 5, boardpositions[diags[1]][1] + 5 , 40, 40))
-                pygame.draw.rect(WIN, (255,255,255), (boardpositions[diags[1]][0] + 10, boardpositions[diags[1]][1] + 10 , 30, 30))
-
-
-            except:
-                if diags != []:
-                    pygame.draw.rect(WIN, (125,125,125), (boardpositions[diags[0]][0] + 5, boardpositions[diags[0]][1] + 5, 40, 40))
-                    pygame.draw.rect(WIN, (255,255,255), (boardpositions[diags[0]][0] + 10, boardpositions[diags[0]][1] + 10 , 30, 30))
+            for l in diags:
+                self.moves.add(l)
 
 
                 
 
         self.draw_moves()
-    
-    
-    
+class rook(piece):
+    def __init__(self, square, isBlack, img):
+        super().__init__(square, isBlack, img, 5)
 
-def diagonal(sq, piece=None):
-    if piece.worth == 1:
-        result = []
-        if piece.isBlack:
-            if sq[0] !='a':
-                sq1 = abcs[abcs.index(sq[0]) + 1]+str(int(sq[1])-1)
-                if square_occupied(sq1, not piece.isBlack):
-                    result.append(sq1)
+    def check_moves(self):
+        self.moves = straight(self.square, self)
+        self.draw_moves()
+class bishop(piece):
+    def __init__(self, square, isBlack, img):
+        super().__init__(square, isBlack, img, 3)
 
-            if sq[0] != 'h':
-                sq2 = abcs[abcs.index(sq[0]) - 1]+str(int(sq[1])-1)
-                if square_occupied(sq2, not piece.isBlack):
-                    result.append(sq2)
+    def check_moves(self):
+        self.moves = diagonal(self.square, self)
+        self.draw_moves()
+class queen(piece):
+    def __init__(self, square, isBlack, img):
+        super().__init__(square, isBlack, img, 9)
 
+    def check_moves(self):
+        self.moves = diagonal(self.square, self) + straight(self.square, self)
+        self.draw_moves()
+class king(piece):
+    def __init__(self, square, isBlack, img):
+        super().__init__(square, isBlack, img, 10000000000000000)
+        self.in_check = False
+
+    def check_moves(self):
+        self.moves = [
+            up(self.square),
+            down(self.square),
+            left(self.square),
+            right(self.square)] + diagonal(self.square, self)
+        self.remove_moves()
+        print(self.moves)
+class knight(piece):
+    def __init__(self, square, isBlack, img):
+        super().__init__(square, isBlack, img, 3)
+
+    def check_moves(self):
+        self.moves = [
+            right(self.square)[0] + str(int(right(self.square)[1]) + 2),
+            left(self.square)[0] + str(int(right(self.square)[1]) + 2),
+            right(self.square)[0] + str(int(right(self.square)[1]) - 2),
+            left(self.square)[0] + str(int(right(self.square)[1]) - 2),
+            right(right(self.square))[0]+ up(self.square)[1],
+            left(left(self.square))[0]+ up(self.square)[1],
+            right(right(self.square))[0]+ down(self.square)[1],
+            left(left(self.square))[0]+ down(self.square)[1]
+        ]
+        self.remove_moves()
+        self.draw_moves()
                
-            return result
-        else:
-            
-            if sq[0] !='a':
-                sq1 = abcs[abcs.index(sq[0]) - 1]+str(int(sq[1])+1)
-                if square_occupied(sq1, not piece.isBlack):
-                    result.append(sq1)
-
-            if sq[0] != 'h':
-                sq2 = abcs[abcs.index(sq[0]) + 1]+str(int(sq[1])+1)
-                if square_occupied(sq2, not piece.isBlack):
-                    result.append(sq2)
-
-               
-            return result
-            
-
-            
-
-    tempsq = sq
-    tr = []
-    bl = []
-    tl = []
-    br = []
-    
-    # Check Top-Right Diagonal
-    while tempsq[0] != 'h' and tempsq[1] != ' 8':
-            tempsq = abcs[abcs.index(tempsq[0]) + 1]+str(int(tempsq[1])+1)
-            tr.append(tempsq)
-            if square_occupied(tempsq):
-                break
-            
-    #Reset while loop
-    tempsq = sq
-
-    # Check Bottom-Left Diagonal
-    while tempsq[0] != 'a' and tempsq[1] != '1':
-        tempsq = abcs[abcs.index(tempsq[0]) - 1]+str(int(tempsq[1])-1)
-        if square_occupied(tempsq):
-                break
-        bl.append(tempsq)
-
-
-    tempsq = sq
-    
-    # Check Top-Left Diagonal
-    while tempsq[0] != 'a' and tempsq[1] != '8':
-        tempsq = abcs[abcs.index(tempsq[0]) - 1]+str(int(tempsq[1])+1)
-        if square_occupied(tempsq):
-                break
-        tl.append(tempsq)
-
-    tempsq = sq
-
-    # Check Bottom-Right Diagonal
-    while tempsq[0] != 'h' and tempsq[1] != '1':
-        tempsq = abcs[abcs.index(tempsq[0]) + 1]+str(int(tempsq[1])-1)
-        if square_occupied(tempsq):
-                break
-        br.append(tempsq)
-
-    return tr + tl + br +bl
 
 
 blp_a= pawn('a7', True, BPAWN)
-blp_b= pawn('b3', True, BPAWN)
+blp_b= pawn('b7', True, BPAWN)
 blp_c= pawn('c7', True, BPAWN)
 blp_d= pawn('d7', True, BPAWN)
 blp_e= pawn('e7', True, BPAWN)
@@ -318,14 +443,36 @@ wp_f= pawn('f2', False, WPAWN)
 wp_g= pawn('g2', False, WPAWN)
 wp_h= pawn('h2', False, WPAWN)
 
+bl_r1 = rook('a8', True, BROOK)
+bl_r2 = rook('h8', True, BROOK)
 
-pieces = [blp_b, wp_a]
+w_r1 = rook('a1', False, WROOK)
+w_r2 = rook('h1', False, WROOK)
+
+bl_kt1 = knight('b8', True, BKNIGHT)
+bl_kt2 = knight('g8', True, BKNIGHT)
+w_kt1 = knight('b1', False, WKNIGHT)
+w_kt2 = knight('g1', False, WKNIGHT)
+
+bl_b1 = bishop('c8', True, BBISHOP)
+bl_b2 = bishop('f8', True, BBISHOP)
+w_b1 = bishop('c1', False, WBISHOP)
+w_b2 = bishop('f1', False, WBISHOP)
+
+bl_q = queen('d8', True, BQUEEN)
+bl_k = king('e8', True, BKING)
+w_q = queen('d1', False, WQUEEN)
+w_k = king('e1', False, WKING)
 
 
-
-pygame.display.flip()
-
-
+pieces = [
+    wp_a, wp_b, wp_c, wp_d, wp_e, wp_f, wp_g, wp_h,
+    blp_a, blp_b, blp_c, blp_d, blp_e, blp_f, blp_g, blp_h,
+    bl_r1, bl_r2, w_r1, w_r2,
+    bl_kt1, bl_kt2, w_kt1, w_kt2,
+    bl_b1, bl_b2, w_b1, w_b2,
+    bl_q, w_q, bl_k, w_k
+    ]
 
 def main():
     clicked_on_piece= None
@@ -349,8 +496,6 @@ def main():
                     else:
                         pygame.draw.rect(WIN, (255,255,255), (n*50,i*50,50,50))
 
-        
-
         #Draw Piece Selected
         if clicked_on_piece != None:
             clicked_on_piece.check_moves()
@@ -358,7 +503,7 @@ def main():
         #Blit pieces
         for piec in pieces:
             piec.draw()
-            
+
         #Event Checking
         pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
@@ -369,14 +514,18 @@ def main():
                     for x in pieces:
                         if x.click(pos):
                             clicked_on_piece = x
-                            
-
     while run:
-            clock.tick(60)
-            redraw()
-            for event in pygame.event.get():
-                if event.type==pygame.QUIT:
-                    pygame.quit()
-                    sys.exit() 
+        clock.tick(60)
+        redraw()
+        for event in pygame.event.get():
+            if event.type==pygame.QUIT:
+                pygame.quit()
+                sys.exit() 
             pygame.display.update()
+
+
+
+
+
+
 main()
