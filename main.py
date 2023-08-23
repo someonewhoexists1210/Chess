@@ -123,11 +123,17 @@ IMGS = {
         'king': (WKING, BKING),
     }
 
+#Useful lambdas
 right = lambda x: abcs[abcs.index(x[0]) + 1] + x[1]
 left = lambda x: abcs[abcs.index(x[0]) - 1] + x[1]
 up = lambda x: x[0] + str(int(x[1])+1)
 down = lambda x: x[0] + str(int(x[1])-1)
 
+#Misc Variables
+clicked_on_piece = None
+whites_turn = True
+
+#Check if square clicked
 def sqclick(sq, pos):
         x1, y1 = pos
         if boardpositions[sq][0] <= x1 <= boardpositions[sq][0] + 50 and boardpositions[sq][1] <= y1 < boardpositions[sq][1] + 50:
@@ -137,6 +143,10 @@ def sqclick(sq, pos):
 
 #Current pieces on board
 pieces = []
+wpieces = []
+bpieces = []
+bking = None
+wking = None
 
 #Checks if any given square is occupied
 def square_occupied(sq, isBlack =None, returnpiece=False):
@@ -330,7 +340,10 @@ class piece:
         self.isBlack = isBlack
         self.img = IMGS[self.__class__.__name__][self.isBlack]
         self.worth = worth
-        
+        self.pieces = {
+            1: bking,
+            0: wking
+        }
 
     def draw(self):
         WIN.blit(self.img, (self.x, self.y))
@@ -358,8 +371,6 @@ class piece:
             if x in self.moves:
                 self.moves.remove(x)
         
-        
-
     def click(self, pos):
         x1 = pos[0]
         y1 = pos[1]
@@ -371,41 +382,44 @@ class piece:
     def capture(self, capturedpiece, player):
         pieces.remove(capturedpiece)
         self.move(capturedpiece.square)
-        print(len(pieces))
         
     
-    def move(self, sq):
+    def move(self, sq, cp=None):
+        if type(sq) == tuple:
+            self.capture(cp, None)
+            return
         self.square = sq
         self.x, self.y = boardpositions[self.square]
-        self.moves = set([])
-
+        
 class pawn(piece):
     def __init__(self, square, isBlack):
         super().__init__(square, isBlack, 1)
         
     def check_moves(self): 
+        mvs = set([])
         if self.isBlack:
             sq_in_front = self.square[0] + str(int(self.square[1]) - 1)
             sq2_in_front = self.square[0] + str(int(self.square[1]) - 2)
             if not square_occupied(sq_in_front):
-                self.moves.add(sq_in_front)
+                mvs.add(sq_in_front)
                 if self.square[1] == '7' and not square_occupied(sq2_in_front):
-                    self.moves.add(sq2_in_front)
+                    mvs.add(sq2_in_front)
         else:
             sq_in_front = self.square[0] + str(int(self.square[1]) + 1)
             sq2_in_front = self.square[0] + str(int(self.square[1]) + 2)
             if not square_occupied(sq_in_front):
-                self.moves.add(sq_in_front)
+                mvs.add(sq_in_front)
                 if self.square[1] == '2' and not square_occupied(sq2_in_front):
-                    self.moves.add(sq2_in_front)
+                    mvs.add(sq2_in_front)
         
         diags = diagonal(self.square, self)
         if diags != None:
             for l in diags:
-                self.moves.add(l)
+                mvs.add(l)
 
+        self.moves = mvs
         self.remove_moves()
-        self.draw_moves()
+        
 
     def capture(self, capturedpiece, player):
         super().capture(capturedpiece, player)
@@ -419,33 +433,41 @@ class rook(piece):
 
     def check_moves(self):
         self.moves = straight(self.square, self)
-        self.draw_moves()
+
 class bishop(piece):
     def __init__(self, square, isBlack):
         super().__init__(square, isBlack, 3)
 
     def check_moves(self):
         self.moves = diagonal(self.square, self)
-        self.draw_moves()
+        
 class queen(piece):
     def __init__(self, square, isBlack):
         super().__init__(square, isBlack, 9)
 
     def check_moves(self):
         self.moves = diagonal(self.square, self) + straight(self.square, self)
-        self.draw_moves()
+       
 class king(piece):
     def __init__(self, square, isBlack):
         super().__init__(square, isBlack, 10000000000000000)
         self.in_check = False
+
 
     def check_moves(self):
         self.moves = [
             up(self.square),
             down(self.square),
             left(self.square),
-            right(self.square)] + diagonal(self.square, self)
+            right(self.square)
+            ] + diagonal(self.square, self)
+        
+        for mv in self.moves:
+            if square_occupied(mv, not self.isBlack):
+                self.moves[self.moves.index(mv)] = (mv, '')
+        
         self.remove_moves()
+      
 class knight(piece):
     def __init__(self, square, isBlack):
         super().__init__(square, isBlack, 3)
@@ -464,9 +486,11 @@ class knight(piece):
         for mv in self.moves:
             if square_occupied(mv, not self.isBlack):
                 self.moves[self.moves.index(mv)] = (mv, '')
+
         self.remove_moves()
-        self.draw_moves()
-               
+
+wking = king('e1', 0)
+bking = king('e8', 1)
 
 pieces = [
 pawn('a7', 1),
@@ -504,37 +528,139 @@ bishop('c1', 0),
 bishop('f1', 0),
 
 queen('d8',  1),
-king('e8', 1),
+bking,
 queen('d1', 0),
-king('e1', 0),
+wking,
+
 
 ]
+wpieces = [x for x in pieces if not x.isBlack]
+bpieces = [x for x in pieces if x.isBlack]
 
+def checkforchecks():
+    wking.in_check = False
+    bking.in_check = False
+
+    if not whites_turn:
+        for p in wpieces:
+            for mv in p.moves:
+                if type(mv) is tuple:
+                    if mv[0] == bking.square:
+                        bking.in_check = True
+
+                        
+    else:
+        for p in bpieces:
+            for mv in p.moves:
+                if type(mv) is tuple:
+                    if mv[0] == wking.square:
+                        wking.in_check = True
+
+
+    
+#white in check
+def responsetocheck(sidechecked):
+    ps = {
+        'white': (wpieces, wking),
+        'black': (bpieces, bking)
+    }
+    global legalmoves
+    legalmoves = []
+    checkedsidepieces, checkedking = ps[sidechecked]
+    if sidechecked == 'white':
+        checkingsidepieces = ps['black'][0]
+    else:
+        checkingsidepieces = ps['white'][0]
+
+    
+    for x in checkedsidepieces: 
+        for c in x.moves: 
+
+            orisq = x.square
+
+            if type(c) is tuple: 
+                    takenp = square_occupied(c[0], returnpiece=True)
+                    pieces.remove(takenp)
+                    checkingsidepieces.remove(takenp)
+                    x.square = c[0]
+
+            else: x.square = c
+
+            for piec in checkingsidepieces:
+                piec.check_moves()
+                for m in piec.moves:
+                    if type(m) is tuple and m[0] == checkedking.square:
+                        break
+                else:
+                    continue
+                break
+            else:
+                legalmoves.append((c, x))
+                
+            if type(c) is tuple:
+                pieces.append(takenp)
+                checkingsidepieces.append(takenp)
+                    
+            x.square = orisq
+    if legalmoves == []:
+        print(sidechecked.upper() + ' has been checkmated'.upper())
+        sys.exit()
+    for pi in checkedsidepieces:
+        pi.moves = set([])
+    for m in legalmoves:
+        m[1].moves.add(m[0])
+
+
+
+        
+
+
+
+
+def checkmove(pos):
+    global clicked_on_piece, whites_turn, checkingpieces
+    for mv in clicked_on_piece.moves:
+        if type(mv) is tuple:
+            if sqclick(mv[0], pos):
+                clicked_on_piece.move(mv, square_occupied(mv[0],returnpiece=True))
+                whites_turn = not whites_turn
+                clicked_on_piece = None
+        else:
+            if sqclick(mv, pos):
+                clicked_on_piece.move(mv)
+                whites_turn = not whites_turn
+                clicked_on_piece = None
+                checkingpieces = None
 
 
 
 
 
 def main():
-    clicked_on_piece= None
-    whites_turn = True
-
+    global wpieces, bpieces
     run = True
     clock = pygame.time.Clock()
 
     def redraw():
-        nonlocal clicked_on_piece, whites_turn
+        global clicked_on_piece, whites_turn
 
         #Board Initialization
         board()
 
         #Draw Piece Selected
         if clicked_on_piece != None:
-            clicked_on_piece.check_moves()
+            clicked_on_piece.draw_moves()
 
         #Blit pieces
         for piec in pieces:
             piec.draw()
+            piec.check_moves()
+            
+        checkforchecks()
+        if whites_turn:
+            responsetocheck('white')
+        else:
+            responsetocheck('black')
 
         #Event Checking
         pos = pygame.mouse.get_pos()
@@ -548,28 +674,24 @@ def main():
                             if whites_turn != x.isBlack:
                                 clicked_on_piece = x
                     if clicked_on_piece != None:
-                        for mv in clicked_on_piece.moves:
-                            if type(mv) is tuple:
-                                if sqclick(mv[0], pos):
-                                    clicked_on_piece.capture(square_occupied(mv[0],returnpiece=True), None)
-                                    whites_turn = not whites_turn
-                                    clicked_on_piece = None
-                            else:
-                                if sqclick(mv, pos):
-                                    clicked_on_piece.move(mv)
-                                    whites_turn = not whites_turn
-                                    clicked_on_piece = None
+                        checkmove(pos)
+                        
+                        
+                    
 
 
     while run:
         clock.tick(60)
         redraw()
+        wpieces = [x for x in pieces if not x.isBlack]
+        bpieces = [x for x in pieces if x.isBlack]
+        
+    
         for event in pygame.event.get():
             if event.type==pygame.QUIT:
                 pygame.quit()
                 sys.exit() 
         pygame.display.update()
-
 
 
 
