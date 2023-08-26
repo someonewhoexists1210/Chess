@@ -1,26 +1,14 @@
 import pygame
-import os, sys
-import time
+import os, sys, math
 
 #Pygame Intialization
 pygame.font.init()
-WID,HEI = 400,400
+WID,HEI = 700,400
 WIN = pygame.display.set_mode((WID,HEI))
 pygame.display.set_caption('Chess')
+pygame.font.init()
+main_font = pygame.font.SysFont("comicsans", 20)
 
-def board():
-    for i in range(0,8):
-            for n in range(8):
-                if i%2==0:
-                    if n%2==1:
-                        pygame.draw.rect(WIN, (0,153,51), (n*50,i*50,50,50))
-                    else:
-                        pygame.draw.rect(WIN, (255,255,255), (n*50,i*50,50,50))
-                else:
-                    if n%2==0:
-                        pygame.draw.rect(WIN, (0,153,51), (n*50,i*50,50,50))
-                    else:
-                        pygame.draw.rect(WIN, (255,255,255), (n*50,i*50,50,50))
 
 
 abcs = '123abcdefghij'
@@ -100,6 +88,7 @@ boardpositions = {
 }
 
 # Images
+BG = pygame.image.load('imgs/bg.png')
 BPAWN = pygame.transform.scale(pygame.image.load('imgs/blpawn.png'), (50,50))
 BROOK = pygame.transform.scale(pygame.image.load('imgs/blrook.png'), (50,50))
 BKNIGHT = pygame.transform.scale(pygame.image.load('imgs/blknight.png'), (50,50))
@@ -123,14 +112,34 @@ IMGS = {
         'king': (WKING, BKING),
     }
 
+def board():
+    WIN.blit(BG, (0, 0))
+    for i in range(0,8):
+            for n in range(8):
+                if i%2==0:
+                    if n%2==1:
+                        pygame.draw.rect(WIN, (0,153,51), (n*50,i*50,50,50))
+                    else:
+                        pygame.draw.rect(WIN, (255,255,255), (n*50,i*50,50,50))
+                else:
+                    if n%2==0:
+                        pygame.draw.rect(WIN, (0,153,51), (n*50,i*50,50,50))
+                    else:
+                        pygame.draw.rect(WIN, (255,255,255), (n*50,i*50,50,50))
+
+
+
 #Useful lambdas
 right = lambda x: abcs[abcs.index(x[0]) + 1] + x[1]
 left = lambda x: abcs[abcs.index(x[0]) - 1] + x[1]
 up = lambda x: x[0] + str(int(x[1])+1)
 down = lambda x: x[0] + str(int(x[1])-1)
+tomins = lambda x: f"{math.floor(x/60)}:{(f'0{x%60}' if x%60 < 10 else x%60) if x % 60 != 0 else '00'}"
 
 #Misc Variables
 clicked_on_piece = None
+pawnpushed = 0
+piece_taken = 0
 whites_turn = True
 
 #Check if square clicked
@@ -379,14 +388,14 @@ class piece:
         else:
             return False
 
-    def capture(self, capturedpiece, player):
+    def capture(self, capturedpiece):
         pieces.remove(capturedpiece)
         self.move(capturedpiece.square)
         
     
     def move(self, sq, cp=None):
         if type(sq) == tuple:
-            self.capture(cp, None)
+            self.capture(cp)
             return
         self.square = sq
         self.x, self.y = boardpositions[self.square]
@@ -421,11 +430,15 @@ class pawn(piece):
         self.remove_moves()
         
 
-    def capture(self, capturedpiece, player):
-        super().capture(capturedpiece, player)
+    def capture(self, capturedpiece):
+        super().capture(capturedpiece)
         if capturedpiece.square[1] == '8':
             pieces.append(queen(self.square, self.isBlack))
             pieces.remove(self)
+    def move(self, sq, cp=None):
+        global pawnpushed
+        super().move(sq, cp)
+        pawnpushed = 0
 
 class rook(piece):
     def __init__(self, square, isBlack):
@@ -489,54 +502,25 @@ class knight(piece):
 
         self.remove_moves()
 
-wking = king('e1', 0)
-bking = king('e8', 1)
+def checkdraw():
+    if len(pieces) <= 4:
+        if len(pieces) == 2: return True, 'Insufficient Material'
 
-pieces = [
-pawn('a7', 1),
-pawn('b7', 1),
-pawn('c7', 1),
-pawn('d7', 1),
-pawn('e7', 1),
-pawn('f7', 1),
-pawn('g7', 1),
-pawn('h7', 1),
+        for p in pieces:
+            if type(p) is queen or type(p) is rook or type(p) is pawn:
+                if pawnpushed < 50 or piece_taken < 50: return False, 'Not a draw'     
+                else: return True, '50 move rule'
+                    
+        else:
+            if len(wpieces) <= 2 and len(bpieces) <= 2: return True, 'Insufficient Material'            
+            return False, 'Not a draw'
+            
 
-pawn('a2', 0),
-pawn('b2', 0),
-pawn('c2', 0),
-pawn('d2', 0),
-pawn('e2', 0),
-pawn('f2', 0),
-pawn('g2', 0),
-pawn('h2', 0),
-
-rook('a8', 1),
-rook('h8', 1),
-
-rook('a1', 0),
-rook('h1', 0),
-
-knight('b8', 1),
-knight('g8', 1),
-knight('b1', 0),
-knight('g1', 0),
-
-bishop('c8', 1),
-bishop('f8', 1),
-bishop('c1', 0),
-bishop('f1', 0),
-
-queen('d8',  1),
-bking,
-queen('d1', 0),
-wking,
-
-
-]
-wpieces = [x for x in pieces if not x.isBlack]
-bpieces = [x for x in pieces if x.isBlack]
-
+    else:
+        if pawnpushed < 50 or piece_taken < 50: return False, 'Not a draw'
+        else: return True, '50 move rule'
+        
+            
 def checkforchecks():
     wking.in_check = False
     bking.in_check = False
@@ -555,10 +539,6 @@ def checkforchecks():
                 if type(mv) is tuple:
                     if mv[0] == wking.square:
                         wking.in_check = True
-
-
-    
-#white in check
 def responsetocheck(sidechecked):
     ps = {
         'white': (wpieces, wking),
@@ -603,43 +583,89 @@ def responsetocheck(sidechecked):
                     
             x.square = orisq
     if legalmoves == []:
+        if not checkedking.in_check:
+            print("STALEMATE")
+            sys.exit()
         print(sidechecked.upper() + ' has been checkmated'.upper())
         sys.exit()
     for pi in checkedsidepieces:
         pi.moves = set([])
     for m in legalmoves:
         m[1].moves.add(m[0])
-
-
-
-        
-
-
-
-
 def checkmove(pos):
-    global clicked_on_piece, whites_turn, checkingpieces
+    global clicked_on_piece, whites_turn, checkingpieces, piece_taken, pawnpushed
     for mv in clicked_on_piece.moves:
         if type(mv) is tuple:
             if sqclick(mv[0], pos):
                 clicked_on_piece.move(mv, square_occupied(mv[0],returnpiece=True))
                 whites_turn = not whites_turn
                 clicked_on_piece = None
+                piece_taken = 0
+                pawnpushed += 0.5
+
         else:
             if sqclick(mv, pos):
                 clicked_on_piece.move(mv)
                 whites_turn = not whites_turn
                 clicked_on_piece = None
                 checkingpieces = None
-
-
-
-
+                piece_taken += 0.5
+                pawnpushed += 0.5
 
 def main():
-    global wpieces, bpieces
+    global wpieces, bpieces, wking, pieces, wpieces, bpieces, bking
     run = True
     clock = pygame.time.Clock()
+
+    wtime = 10
+    btime = 300
+
+    wking = king('e1', 0)
+    bking = king('e8', 1)
+
+    pieces = [
+    pawn('a7', 1),
+    pawn('b7', 1),
+    pawn('c7', 1),
+    pawn('d7', 1),
+    pawn('e7', 1),
+    pawn('f7', 1),
+    pawn('g7', 1),
+    pawn('h7', 1),
+
+    pawn('a2', 0),
+    pawn('b2', 0),
+    pawn('c2', 0),
+    pawn('d2', 0),
+    pawn('e2', 0),
+    pawn('f2', 0),
+    pawn('g2', 0),
+    pawn('h2', 0),
+
+    rook('a8', 1),
+    rook('h8', 1),
+
+    rook('a1', 0),
+    rook('h1', 0),
+
+    knight('b8', 1),
+    knight('g8', 1),
+    knight('b1', 0),
+    knight('g1', 0),
+
+    bishop('c8', 1),
+    bishop('f8', 1),
+    bishop('c1', 0),
+    bishop('f1', 0),
+
+    queen('d8',  1),
+    bking,
+    queen('d1', 0),
+    wking,
+    ]
+    wpieces = [x for x in pieces if not x.isBlack]
+    bpieces = [x for x in pieces if x.isBlack]
+
 
     def redraw():
         global clicked_on_piece, whites_turn
@@ -657,6 +683,10 @@ def main():
             piec.check_moves()
             
         checkforchecks()
+        draw = checkdraw()
+        if draw[0]:
+            print('DRAW BY ' + draw[1].upper())
+            sys.exit()
         if whites_turn:
             responsetocheck('white')
         else:
@@ -676,15 +706,32 @@ def main():
                     if clicked_on_piece != None:
                         checkmove(pos)
                         
-                        
-                    
-
 
     while run:
         clock.tick(60)
+        if whites_turn:
+            wtime -= 0.016666666666666666666
+            if wtime <= 0:
+                print("WHITE LOST ON TIME")
+                sys.exit()
+        else:
+            btime -= 0.016666666666666666666
+            if btime <= 0:
+                print("BLACK LOST ON TIME")
+                sys.exit()
         redraw()
         wpieces = [x for x in pieces if not x.isBlack]
         bpieces = [x for x in pieces if x.isBlack]
+        
+
+        
+        
+        wtimelabel = main_font.render(tomins(round(wtime)), 1, (255, 255, 255))
+        btimelabel = main_font.render(tomins(round(btime)), 1, (255, 255, 255))
+
+        WIN.blit(wtimelabel, (450, 300))
+        WIN.blit(btimelabel, (450, 100))
+
         
     
         for event in pygame.event.get():
