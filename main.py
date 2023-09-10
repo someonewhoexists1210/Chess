@@ -452,6 +452,25 @@ class pawn(piece):
         if diags != None:
             for l in diags:
                 mvs.add(l)
+        if last_move != None:
+            if self.isBlack:
+                if type(last_move[0]) is pawn and last_move[1][1] == '4' and last_move[2][1] == '2':
+                    if self.square[1] == '4':
+                        if last_move[1][0] == abcs[abcs.index(self.square[0]) + 1]:
+                              mvs.add((abcs[abcs.index(self.square[0]) + 1] + str(int(self.square[1]) - 1), last_move[0]))
+                        if last_move[1][0] == abcs[abcs.index(self.square[0]) - 1]:
+                            mvs.add((abcs[abcs.index(self.square[0]) - 1] + str(int(self.square[1]) - 1), last_move[0]))
+            else:
+                if type(last_move[0]) is pawn and last_move[1][1] == '5' and last_move[2][1] == '7':
+                    if self.square[1] == '5':
+                        if last_move[1][0] == abcs[abcs.index(self.square[0]) + 1]:
+                              mvs.add((abcs[abcs.index(self.square[0]) + 1] + str(int(self.square[1]) + 1), last_move[0]))
+                        if last_move[1][0] == abcs[abcs.index(self.square[0]) - 1]:
+                            mvs.add((abcs[abcs.index(self.square[0]) - 1] + str(int(self.square[1]) + 1), last_move[0]))
+        
+                            
+
+                    
 
         self.moves = mvs
         self.remove_moves()
@@ -463,8 +482,15 @@ class pawn(piece):
             pieces.remove(self)
 
     def move(self, sq, cp=None):
-        global pawnpushed
+        global pawnpushed                
         super().move(sq, cp)
+        if type(sq) is tuple:
+            if sq[1] != '':
+                if self.isBlack:
+                    self.square = cp.square[0] + str(int(cp.square[1]) - 1)
+                else:
+                    self.square = cp.square[0] + str(int(cp.square[1]) + 1)
+                self.x, self.y = boardpositions[self.square]   
         pawnpushed = 0
 
 #Rook Class
@@ -598,6 +624,7 @@ def checkforchecks():
                     if mv[0] == wking.square:
                         wking.in_check = True
 
+#Removes illegal moves (Based on checks etc)
 def setlegalmoves(sidechecked):
     ps = {
         'white': (wpieces, wking, 'black'),
@@ -612,8 +639,11 @@ def setlegalmoves(sidechecked):
         for c in x.moves: 
             orisq = x.square
 
-            if type(c) is tuple: 
-                    takenp = square_occupied(c[0], returnpiece=True)
+            if type(c) is tuple:
+                    if c[1] == '':
+                        takenp = square_occupied(c[0], returnpiece=True)
+                    else:
+                        takenp = c[1]
                     pieces.remove(takenp)
                     checkingsidepieces.remove(takenp)
                     x.square = c[0]
@@ -649,7 +679,7 @@ def setlegalmoves(sidechecked):
 
 #Checks if move has been made and moves the chosen piece
 def checkmove(pos):
-    global clicked_on_piece, whites_turn, piece_taken, pawnpushed
+    global clicked_on_piece, whites_turn, piece_taken, pawnpushed, last_move
 
     def movechange():
         global whites_turn, clicked_on_piece, pawnpushed
@@ -690,15 +720,22 @@ def checkmove(pos):
 
         if type(mv) is tuple:
             if sqclick(mv[0], pos):
-                clicked_on_piece.move(mv, square_occupied(mv[0],returnpiece=True))
+                if mv[1] == '':
+                    clicked_on_piece.move(mv, square_occupied(mv[0],returnpiece=True))
+                else:
+                    clicked_on_piece.move(mv, mv[1])
                 piece_taken = 0
+                last_move = (clicked_on_piece, mv)
                 movechange()      
         else:
             if sqclick(mv, pos):
+                osq = clicked_on_piece.square
                 clicked_on_piece.move(mv)
                 piece_taken += 0.5
+                last_move = (clicked_on_piece, mv, osq)
                 movechange()
-                
+
+#Checks if either side can castle    
 def castles(color):
     castlesqs = {
         False: {
@@ -757,9 +794,10 @@ def castles(color):
         
 # Main game loop
 def main():
-    global wpieces, wtime, bpieces, wking, pieces, wpieces, bpieces, bking, run, wkrook, wqrook, bkrook, bqrook
+    global wpieces, wtime, bpieces, wking, pieces, wpieces, bpieces, bking, run, wkrook, wqrook, bkrook, bqrook, last_move
     run = True
     clock = pygame.time.Clock()
+    last_move = None
 
     wtime = 300
     btime = 300
