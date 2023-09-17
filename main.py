@@ -86,27 +86,13 @@ boardpositions = {
 # Images
 BG = pygame.image.load('imgs/bg.png')
 
-BPAWN = pygame.transform.scale(pygame.image.load('imgs/blpawn.png'), (50,50))
-BROOK = pygame.transform.scale(pygame.image.load('imgs/blrook.png'), (50,50))
-BKNIGHT = pygame.transform.scale(pygame.image.load('imgs/blknight.png'), (50,50))
-BBISHOP = pygame.transform.scale(pygame.image.load('imgs/blbishop.png'), (50,50))
-BQUEEN = pygame.transform.scale(pygame.image.load('imgs/blqueen.png'), (50,50))
-BKING = pygame.transform.scale(pygame.image.load('imgs/blking.png'), (50,50))
-
-WPAWN = pygame.transform.scale(pygame.image.load('imgs/wpawn.png'), (50,50))
-WROOK = pygame.transform.scale(pygame.image.load('imgs/wrook.png'), (50,50))
-WKNIGHT = pygame.transform.scale(pygame.image.load('imgs/wknight.png'), (50,50))
-WBISHOP = pygame.transform.scale(pygame.image.load('imgs/wbishop.png'), (50,50))
-WQUEEN = pygame.transform.scale(pygame.image.load('imgs/wqueen.png'), (50,50))
-WKING = pygame.transform.scale(pygame.image.load('imgs/wking.png'), (50,50))
-
 IMGS = {
-        'pawn': (WPAWN, BPAWN),
-        'knight': (WKNIGHT, BKNIGHT),
-        'bishop': (WBISHOP, BBISHOP),
-        'rook': (WROOK, BROOK),
-        'queen': (WQUEEN, BQUEEN),
-        'king': (WKING, BKING),
+        'pawn': (pygame.transform.scale(pygame.image.load('imgs/wpawn.png'), (50,50)), pygame.transform.scale(pygame.image.load('imgs/blpawn.png'), (50,50))),
+        'knight': (pygame.transform.scale(pygame.image.load('imgs/wknight.png'), (50,50)), pygame.transform.scale(pygame.image.load('imgs/blknight.png'), (50,50))),
+        'bishop': (pygame.transform.scale(pygame.image.load('imgs/wbishop.png'), (50,50)), pygame.transform.scale(pygame.image.load('imgs/blbishop.png'), (50,50))),
+        'rook': (pygame.transform.scale(pygame.image.load('imgs/wrook.png'), (50,50)), pygame.transform.scale(pygame.image.load('imgs/blrook.png'), (50,50))),
+        'queen': (pygame.transform.scale(pygame.image.load('imgs/wqueen.png'), (50,50)), pygame.transform.scale(pygame.image.load('imgs/blqueen.png'), (50,50))),
+        'king': (pygame.transform.scale(pygame.image.load('imgs/wking.png'), (50,50)), pygame.transform.scale(pygame.image.load('imgs/blking.png'), (50,50))),
     }
 
 #Misc Variables
@@ -115,13 +101,16 @@ clicked_on_piece = None
 pawnpushed = 0
 piece_taken = 0
 whites_turn = True
+movesdone = 0
+positions = []
+file = open('game.txt', 'w+')
 
 #Useful lambdas
 right = lambda x: abcs[abcs.index(x[0]) + 1] + x[1]
 left = lambda x: abcs[abcs.index(x[0]) - 1] + x[1]
 up = lambda x: x[0] + str(int(x[1])+1)
 down = lambda x: x[0] + str(int(x[1])-1)
-tomins = lambda x: f"{math.floor(x/60)}:{(f'0{x%60}' if x%60 < 10 else x%60) if x % 60 != 0 else '00'}"
+tomins = lambda x: f"{math.floor(x/60)}:{(f'0{x%60}' if x%60 < 10 else x%60) if x % 60 != 0 else '00'}" if x/3600 < 1 else f"{math.floor(x/3600)}:{math.floor(x/60) - 60 if math.floor(x/60) - 60 >= 10 else f'0{math.floor(x/60)-60}'}:{(f'0{x%60}' if x%60 < 10 else x%60) if x % 60 != 0 else '00'}"
 
 #Board Init
 def board():
@@ -149,19 +138,25 @@ def sqclick(sq, pos):
 
 # Button Class
 class Button:
-    def __init__(self, x, y, text=None, color=None, width=200, height=200 ,textcolor=(0, 0, 0)):
-        self.x, self.y, self.width, self.height, self.color, self.textcolor = x, y, width, height, color, textcolor
+    def __init__(self, x, y, text=None, color=None ,textcolor=(0, 0, 0), center = False, autofit= True, *size):
+        self.x, self.y, self.color, self.textcolor = x, y, color, textcolor
         if text != None: 
             self.text = text
-            font = pygame.font.SysFont("comicsans", 30)
-            self.textlabel = font.render(self.text, 1, self.textcolor)
-            self.width, self.height = self.textlabel.get_size()
-            self.x = WID/2 - self.width/2
-            self.y = HEI/2 - self.height/2
+            self.font = pygame.font.SysFont("comicsans", 30)
+            self.textlabel = self.font.render(self.text, 1, self.textcolor)
+            if not autofit: self.width, self.height = size
+            else: self.width, self.height = self.textlabel.get_size()
+            if center:
+                self.x = WID/2 - self.width/2
+                self.y = HEI/2 - self.height/2
 
     def draw(self):
+        self.textlabel = self.font.render(self.text, 1, self.textcolor)
+        x = self.x + self.width/2 - self.textlabel.get_size()[0]/2
+        y = self.y + self.height/2 - self.textlabel.get_size()[1]/2
+
         pygame.draw.rect(WIN, self.color, (self.x, self.y, self.width, self.height))
-        WIN.blit(self.textlabel, (self.x , self.y))
+        WIN.blit(self.textlabel, (x , y))
         
     def click(self, pos):
         x1 = pos[0]
@@ -457,20 +452,18 @@ class pawn(piece):
                 if type(last_move[0]) is pawn and last_move[1][1] == '4' and last_move[2][1] == '2':
                     if self.square[1] == '4':
                         if last_move[1][0] == abcs[abcs.index(self.square[0]) + 1]:
-                              mvs.add((abcs[abcs.index(self.square[0]) + 1] + str(int(self.square[1]) - 1), last_move[0]))
+                            mvs.add((abcs[abcs.index(self.square[0]) + 1] + str(int(self.square[1]) - 1), last_move[0]))
+                            
                         if last_move[1][0] == abcs[abcs.index(self.square[0]) - 1]:
                             mvs.add((abcs[abcs.index(self.square[0]) - 1] + str(int(self.square[1]) - 1), last_move[0]))
             else:
                 if type(last_move[0]) is pawn and last_move[1][1] == '5' and last_move[2][1] == '7':
                     if self.square[1] == '5':
                         if last_move[1][0] == abcs[abcs.index(self.square[0]) + 1]:
-                              mvs.add((abcs[abcs.index(self.square[0]) + 1] + str(int(self.square[1]) + 1), last_move[0]))
+                            mvs.add((abcs[abcs.index(self.square[0]) + 1] + str(int(self.square[1]) + 1), last_move[0]))
                         if last_move[1][0] == abcs[abcs.index(self.square[0]) - 1]:
                             mvs.add((abcs[abcs.index(self.square[0]) - 1] + str(int(self.square[1]) + 1), last_move[0]))
-        
                             
-
-                    
 
         self.moves = mvs
         self.remove_moves()
@@ -587,6 +580,13 @@ def is_sufficient(color = None):
         if len(pss[color]) == 2:
             return False
 
+#Gets current position
+def get_position():
+    temp = []
+    for p in pieces:
+        temp.append(p.square)
+    return temp
+
 #Checks for a draw
 def checkdraw():
     if len(pieces) <= 4:
@@ -594,18 +594,22 @@ def checkdraw():
 
         for p in pieces:
             if type(p) is queen or type(p) is rook or type(p) is pawn:
-                if pawnpushed < 50 or piece_taken < 50: return False, 'Not a draw'     
-                else: return True, '50 move rule'
+                if pawnpushed >= 50 and piece_taken >= 50: return True, '50 move rule'    
+                elif positions.count(get_position()) >= 2: return True, 'Repetition'
+                else: return False, 'Not a draw' 
                     
         else:
             if len(wpieces) <= 2 and len(bpieces) <= 2: return True, 'Insufficient Material'            
-            return False, 'Not a draw'
+            elif positions.count(get_position()) >= 2: return True, 'Repetition'
+            else: return False, 'Not a draw'
+
             
     else:
-        if pawnpushed < 50 or piece_taken < 50: return False, 'Not a draw'
-        else: return True, '50 move rule'      
-
-#Checks
+        if pawnpushed >= 50 and piece_taken >= 50: return True, '50 Move Rule'
+        elif positions.count(get_position()) >= 2: return True, 'Repetition'
+        else: return False, 'Not a draw'
+      
+#Checks if in check
 def checkforchecks():
     wking.in_check = False
     bking.in_check = False
@@ -671,7 +675,7 @@ def setlegalmoves(sidechecked):
         if not checkedking.in_check:
             result('STALEMATE')
         else:
-            result(otherside.upper()+ ' WINS BY CHECKMATE')
+            result(otherside.upper()+ ' WINS BY CHECKMATE')        
     for pi in checkedsidepieces:
         pi.moves = set([])
     for m in legalmoves:
@@ -679,13 +683,18 @@ def setlegalmoves(sidechecked):
 
 #Checks if move has been made and moves the chosen piece
 def checkmove(pos):
-    global clicked_on_piece, whites_turn, piece_taken, pawnpushed, last_move
+    global clicked_on_piece, whites_turn, piece_taken, pawnpushed, last_move, movesdone
 
     def movechange():
-        global whites_turn, clicked_on_piece, pawnpushed
+        global whites_turn, clicked_on_piece, pawnpushed, movesdone
         whites_turn = not whites_turn
         clicked_on_piece = None
         pawnpushed += 0.5
+        movesdone += 0.5
+        for p in pieces:
+            p.check_moves()
+        positions.append(get_position())
+        notation()
 
     for mv in clicked_on_piece.moves:
         if clicked_on_piece == wking:
@@ -694,13 +703,17 @@ def checkmove(pos):
                     if sqclick('g1', pos):
                         wking.move('g1')
                         wkrook.move('f1')
+                        last_move = (wking, 'O-O')
                         movechange()
+                        return
                     continue
                 elif mv[0] == 'c':
                     if sqclick('c1', pos):
                         wking.move('c1')
                         wqrook.move('d1')
+                        last_move = (wking, 'O-O-O')
                         movechange()
+                        return
                     continue
 
         elif clicked_on_piece == bking:
@@ -709,24 +722,30 @@ def checkmove(pos):
                     if sqclick('g8', pos):
                         bking.move('g8')
                         bkrook.move('f8')
+                        last_move = (bking, 'O-O')
                         movechange()
+                        return
                     continue
                 elif mv[0] == 'c':
                     if sqclick('c8', pos):
                         bking.move('c8')
                         bqrook.move('d8')
+                        last_move = (bking, 'O-O-O')
                         movechange()
+                        return
                     continue
 
         if type(mv) is tuple:
+            osq = clicked_on_piece.square
             if sqclick(mv[0], pos):
                 if mv[1] == '':
                     clicked_on_piece.move(mv, square_occupied(mv[0],returnpiece=True))
                 else:
                     clicked_on_piece.move(mv, mv[1])
                 piece_taken = 0
-                last_move = (clicked_on_piece, mv)
+                last_move = (clicked_on_piece, mv, osq)
                 movechange()      
+                return
         else:
             if sqclick(mv, pos):
                 osq = clicked_on_piece.square
@@ -734,6 +753,7 @@ def checkmove(pos):
                 piece_taken += 0.5
                 last_move = (clicked_on_piece, mv, osq)
                 movechange()
+                return
 
 #Checks if either side can castle    
 def castles(color):
@@ -792,15 +812,42 @@ def castles(color):
     if result[1]:
         selfking.moves.add(castlesqs[color]['qside'][1] + "p")
         
+#Writes Notation
+def notation():
+    checkforchecks()
+    if last_move == None: return
+
+    x = last_move[1]
+    
+    if type(x) is tuple:
+        x = "x" + x[0]
+    if bking.in_check or wking.in_check:
+        x = x + '+'
+
+
+    if type(last_move[0]) is knight:
+        x = 'N' + x
+    elif type(last_move[0]) is pawn:
+        if x[0] == 'x':
+            x = last_move[2][0] + x
+    else:
+        if 'O' not in x:
+            x = type(last_move[0]).__name__[0].upper() + x
+
+    file.write(x + " ")
+    
 # Main game loop
 def main():
-    global wpieces, wtime, bpieces, wking, pieces, wpieces, bpieces, bking, run, wkrook, wqrook, bkrook, bqrook, last_move
+    global wpieces, wtime, bpieces, wking, pieces, wpieces, bpieces, bking, run, wkrook, wqrook, bkrook, bqrook, last_move, draw
     run = True
     clock = pygame.time.Clock()
+    resignblack = Button(450, 50, "Resign", (0, 0, 0),(255, 255, 255), False, False, 150, 40)
+    resignwhite = Button(450, 250, "Resign", (255, 255, 255), (0, 0, 0), False, False, 150, 40)
+
     last_move = None
 
-    wtime = 300
-    btime = 300
+    wtime = 3770
+    btime = 234
 
     wking = king('e1', 0)
     bking = king('e8', 1)
@@ -854,7 +901,7 @@ def main():
     bpieces = [x for x in pieces if x.isBlack]
 
     def redraw():
-        global clicked_on_piece, whites_turn
+        global clicked_on_piece, whites_turn, draw
         
         #Board Initialization
         board()
@@ -876,6 +923,28 @@ def main():
             setlegalmoves('white')
         else:
             setlegalmoves('black')
+        
+            
+        wtimelabel = main_font.render(tomins(round(wtime)), 1, (255, 255, 255))
+        btimelabel = main_font.render(tomins(round(btime)), 1, (255, 255, 255))
+        WIN.blit(wtimelabel, (450, 300))
+        WIN.blit(btimelabel, (450, 100))
+
+        if last_move == None:
+            resignwhite.text = "Abort"
+            resignblack.text = "Abort"
+
+        else:
+            if movesdone == 0.5:
+                resignblack.text = "Abort"
+                resignwhite.text = "Resign"
+            else:
+                resignblack.text = "Resign"
+                resignwhite.text = "Resign"
+        
+
+        resignblack.draw()
+        resignwhite.draw()
  
         #Event Checking
         pos = pygame.mouse.get_pos()
@@ -890,49 +959,65 @@ def main():
                                 clicked_on_piece = x
                     if clicked_on_piece != None:
                         checkmove(pos)
-                
+                    if resignblack.click(pos):
+                        if resignblack.text == "Resign":
+                            result('White wins by resignation')
+                        else:
+                            result('Game Aborted')
+                    if resignwhite.click(pos):
+                        if resignwhite.text == "Resign":
+                            result('Black wins by resignation')
+                        else:
+                            result('Game Aborted')                
     while run:
         clock.tick(60)
         if whites_turn:
-            wtime -= 0.016666666666666666666
+            wtime -= 1/76
             if wtime <= 0:
                 if is_sufficient('black'):
                     result('BLACK WINS ON TIME')
                 else:
+                    draw = (True, "")
                     result('TIMEOUT VS IN. MATERIAL')
 
         else:
-            btime -= 0.016666666666666666666
+            btime -= 1/76
             if btime <= 0:
                 if is_sufficient('white'):
                     result('WHITE WINS ON TIME')
                 else:
+                    draw = (True, "")
                     result('IN. MATERIAL VS TIMEOUT')
 
         redraw()
         wpieces = [x for x in pieces if not x.isBlack]
         bpieces = [x for x in pieces if x.isBlack]
-    
-        wtimelabel = main_font.render(tomins(round(wtime)), 1, (255, 255, 255))
-        btimelabel = main_font.render(tomins(round(btime)), 1, (255, 255, 255))
-        WIN.blit(wtimelabel, (450, 300))
-        WIN.blit(btimelabel, (450, 100))
-
-        for event in pygame.event.get():
-            if event.type==pygame.QUIT:
-                pygame.quit()
-                sys.exit() 
+            
         pygame.display.update()
     
 def result(res):
-    global run
+    global run, file
+
     while True:
         message = Button(225, 175, res, (255, 255, 255), 100, 50)
         message.draw()
+        
+
         run = False
 
         for event in pygame.event.get():
                 if event.type==pygame.QUIT:
+                    file.close()
+                    f = open('game.txt', 'r+')
+                    pgn = f.read()
+                    f1 = open('game.txt', 'w+')
+                    if res.split()[-1] == "CHECKMATE":
+                        f1.write(pgn[:-2] + '#')
+                    elif draw[0]:
+                        if pgn[-2] != "+":
+                            f1.write(pgn[:-1] + '=')
+                        else:
+                            f1.write(pgn[:-2] + '=')
                     pygame.quit()
                     sys.exit() 
         pygame.display.update()
