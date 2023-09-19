@@ -166,7 +166,34 @@ def sqclick(sq, pos):
             return False
 
 # Button Class
+class Button:
+    def __init__(self, x, y, text=None, color=None ,textcolor=(0, 0, 0), center = False, autofit= True, *size):
+        self.x, self.y, self.color, self.textcolor = x, y, color, textcolor
+        if text != None: 
+            self.text = text
+            self.font = pygame.font.SysFont("comicsans", 30)
+            self.textlabel = self.font.render(self.text, 1, self.textcolor)
+            if not autofit: self.width, self.height = size
+            else: self.width, self.height = self.textlabel.get_size()
+            if center:
+                self.x = WID/2 - self.width/2
+                self.y = HEI/2 - self.height/2
 
+    def draw(self):
+        self.textlabel = self.font.render(self.text, 1, self.textcolor)
+        x = self.x + self.width/2 - self.textlabel.get_size()[0]/2
+        y = self.y + self.height/2 - self.textlabel.get_size()[1]/2
+
+        pygame.draw.rect(WIN, self.color, (self.x, self.y, self.width, self.height))
+        WIN.blit(self.textlabel, (x , y))
+        
+    def click(self, pos):
+        x1 = pos[0]
+        y1 = pos[1]
+        if self.x <= x1 <= self.x + self.width and self.y <= y1 < self.y + self.height:
+            return True
+        else:
+            return False
 
 #Current pieces on board
 pieces = []
@@ -610,7 +637,7 @@ def checkdraw():
         if pawnpushed >= 50 and piece_taken >= 50: return True, '50 Move Rule'
         elif positions.count(get_position()) >= 2: return True, 'Repetition'
         else: return False, 'Not a draw'
-    
+      
 #Checks if in check
 def checkforchecks():
     wking.in_check = False
@@ -840,7 +867,7 @@ def notation():
     
 # Main game loop
 def main():
-    global wpieces, bpieces, wking, pieces, bking, run, wkrook, wqrook, bkrook, bqrook, last_move, draw
+    global wpieces, wtime, bpieces, wking, pieces, wpieces, bpieces, bking, run, wkrook, wqrook, bkrook, bqrook, last_move, draw
     run = True
     clock = pygame.time.Clock()
     resignblack = Button(450, 50, "Resign", (0, 0, 0),(255, 255, 255), False, False, 150, 40)
@@ -961,7 +988,7 @@ def main():
 
         resignblack.draw()
         resignwhite.draw()
-
+ 
         #Event Checking
         pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
@@ -1017,25 +1044,24 @@ def result(res):
         # pygame.draw.rect(WIN, (255, 255, 0), ())
         message = Button(225, 175, res, (255, 255, 255), center=True)
         message.draw()
+        
+
         run = False
 
         for event in pygame.event.get():
-            if event.type==pygame.QUIT:
-                file.close()
-                f = open('game.txt', 'r+')
-                pgn = f.read()
-                f1 = open('game.txt', 'w+')
-                if res.split()[-1] == "CHECKMATE":
-                    f1.write(pgn[:-2] + '#')
-                elif draw[0]:
-                    if pgn[-2] != "+":
-                        f1.write(pgn[:-1] + '=')
-                    else:
-                        f1.write(pgn[:-2] + '=')
-                pygame.quit()
-                sys.exit() 
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if message.click(pygame.mouse.get_pos()):
-                    print('dg')
+                if event.type==pygame.QUIT:
+                    file.close()
+                    f = open('game.txt', 'r+')
+                    pgn = f.read()
+                    f1 = open('game.txt', 'w+')
+                    if res.split()[-1] == "CHECKMATE":
+                        f1.write(pgn[:-2] + '#')
+                    elif draw[0]:
+                        if pgn[-2] != "+":
+                            f1.write(pgn[:-1] + '=')
+                        else:
+                            f1.write(pgn[:-2] + '=')
+                    pygame.quit()
+                    sys.exit() 
         pygame.display.update()
 main()
