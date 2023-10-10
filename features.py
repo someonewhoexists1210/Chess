@@ -1,5 +1,4 @@
-import pygame, sys
-sys.dont_write_bytecode = True
+import pygame, sys, mysql.connector
 
 class InputBox:
     
@@ -95,10 +94,8 @@ class Button:
             return True
         else:
             return False
-        
-from os import error
-import mysql.connector
-
+    
+#Database connector
 class MYSQL:
     def __init__(self, path, host, user, password, database):
         self.path = path

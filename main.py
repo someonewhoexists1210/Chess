@@ -104,7 +104,6 @@ IMGS = {
         'king': (pygame.transform.scale(pygame.image.load('imgs/wking.png'), (50,50)), pygame.transform.scale(pygame.image.load('imgs/blking.png'), (50,50))),
     }
 
-
 #Current pieces on board
 pieces = []
 wpieces = []
@@ -130,6 +129,9 @@ up = lambda x: x[0] + str(int(x[1])+1)
 down = lambda x: x[0] + str(int(x[1])-1)
 tomins = lambda x: f"{math.floor(x/60)}:{(f'0{x%60}' if x%60 < 10 else x%60) if x % 60 != 0 else '00'}" if x/3600 < 1 else f"{math.floor(x/3600)}:{math.floor(x/60) - 60 if math.floor(x/60) - 60 >= 10 else f'0{math.floor(x/60)-60}'}:{(f'0{x%60}' if x%60 < 10 else x%60) if x % 60 != 0 else '00'}"
 getword = lambda st, ind: st.split(' ')[ind]
+
+#Client color
+pl_color = 0
 
 #Board Init
 def board():
@@ -395,7 +397,7 @@ def straight(sq, piece):
         r.append(tempsq)
 
     tempsq = sq
-    #Check File Ahead
+    #Check Row Left
     while tempsq[0] != 'a':
         tempsq = abcs[abcs.index(tempsq[0])-1] + tempsq[1]
         occupied = square_occupied(tempsq, returnpiece=True)
@@ -433,19 +435,23 @@ class piece:
                 pygame.draw.rect(WIN, (255,255,255), (boardpositions[x[1:3]][0] + 10, boardpositions[x[1:3]][1] + 10 , 30, 30))
 
             else:
-                #For castleing moves
-                if x[-1] == 'p':
-                    pygame.draw.circle(WIN, (125,125,125), (boardpositions[x[:-1]][0] + 25, boardpositions[x[:-1]][1] + 25), 10)
-                else:
-                    pygame.draw.circle(WIN, (125,125,125), (boardpositions[x][0] + 25, boardpositions[x][1] + 25), 10)
+                #For castling moves
+                if x[-1] == 'O':
+                    x = ('g8' if self.isBlack else 'g1') if x == 'O-O' else ('c8' if self.isBlack else 'c1')
+                elif '=' in x:
+                    x = x.split('=')[0]
+                pygame.draw.circle(WIN, (125,125,125), (boardpositions[x][0] + 25, boardpositions[x][1] + 25), 10)
 
     #Remove illegal moves
     def remove_moves(self):
         toremove = []
         for l in self.moves:
+            if '=' in l:
+                l = l.split("=")[0]
             if l[0] == 'x':
                 if l[1:3] not in boardpositions:
                     toremove.append(l)
+
             elif l not in boardpositions:
                 toremove.append(l)
             elif square_occupied(l, self.isBlack):
@@ -472,35 +478,21 @@ class piece:
     #Move function
     def move(self, sq, cp=None):
         global last_move, piece_taken
+        sq = str(sq)
         if sq in self.moves:
             if sq[0] == 'x':
                 last_move = (self, sq, self.square)
-                ptn = notationhelp()
-                
-                
+                ptn = notationhelp()                 
                 cp = square_occupied(sq[1:3],returnpiece=True)
                 piece_taken = 0
-                
-                if type(self) == pawn and cp == None:
-                    passant = True
-                    cp = square_occupied(sq[1] + str(int(sq[2]) + 1), returnpiece=True) if self.isBlack else square_occupied(sq[1] + str(int(sq[2]) - 1), returnpiece=True)
-                else:
-                    passant = False
-
                 self.capture(cp)
-                if passant:
-                    self.square = self.square[0] + str(int(self.square[1]) + (-1 if self.isBlack else 1))
-
                 movechange(ptn)  
-
-
             else:
                 last_move = (self, sq, self.square)
                 ptn = notationhelp()
                 self.square = sq  
                 piece_taken += 0.5
                 movechange(ptn)
-
         else:
             raise ValueError(f'{self.__class__.__name__.capitalize()} {"takes" if sq[0] == "x" else "to"} {sq[1:3] if sq[0] == "x" else sq}')
 
@@ -551,69 +543,146 @@ class pawn(piece):
                             mvs.add('x' + abcs[abcs.index(self.square[0]) - 1] + str(int(self.square[1]) + 1))
         
         tor = [[], []]
-        for m in self.moves:
-            if m[1] == '8':
+        for m in mvs:
+            if m[-1] == '8' or m[-1] == '1':
                 tor[0].append(m)
                 tor[1].append(m+'=Q')
                 tor[1].append(m+'=R')
                 tor[1].append(m+'=B')
-                tor[1].append(m+'=K')
+                tor[1].append(m+'=N')
         for _ in tor[0]:
-            self.moves.remove(_)
+            mvs.remove(_)
         for _ in tor[1]:
-            self.moves.add(_)
+            mvs.add(_)
 
 
         self.moves = mvs
         self.remove_moves()
         
-    def capture(self, capturedpiece):
-        super().capture(capturedpiece)
+    def promote(self, sq, definitepromote=False):
         global promoted
-        if capturedpiece.square[1] == '8':
-            q = Button(WIN, 100, 190, "Queen", (255, 255, 255), autofit=False, fontsize= 15, screensize = (WID, HEI), size = (50, 20))
-            r = Button(WIN, 150, 190, "Rook", (255, 255, 255), autofit=False, fontsize= 15, screensize = (WID, HEI), size = (50, 20))
-            b = Button(WIN, 200, 190, "Bishop", (255, 255, 255), autofit=False, fontsize= 15, screensize = (WID, HEI), size = (50, 20))
-            k = Button(WIN, 250, 190, "Knight", (255, 255, 255), autofit=False, fontsize= 15, screensize = (WID, HEI), size = (50, 20))
-            
+        sq = str(sq).removeprefix('x')
+        
+        if definitepromote:
+            sq, p = sq.split('=')
+            piec = {
+                'Q': queen(sq, self.isBlack),
+                'R': rook(sq, self.isBlack),
+                'B': bishop(sq, self.isBlack),
+                'N': knight(sq, self.isBlack)
 
-            x = True
-            while x:
-                q.draw()
-                r.draw()
-                b.draw()
-                k.draw()
-
-
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        pygame.quit()
-                        sys.exit()
-                    if event.type == pygame.MOUSEBUTTONDOWN:
-                        if q.click(pygame.mouse.get_pos()):
-                            pieces.append(queen(self.square, self.isBlack))
-                            to = 'Q'
-                            x = False
-                        if r.click(pygame.mouse.get_pos()):
-                            pieces.append(rook(self.square, self.isBlack))
-                            to = 'R'
-                            x = False
-                        if b.click(pygame.mouse.get_pos()):
-                            pieces.append(bishop(self.square, self.isBlack))
-                            to = 'B'
-                            x = False
-                        if k.click(pygame.mouse.get_pos()):
-                            pieces.append(knight(self.square, self.isBlack))
-                            to = 'K'
-                            x = False
-            
-                pygame.display.update()
-            promoted = (True, to)
+            }
+            print(piec[p])
+            pieces.append(piec[p])
             pieces.remove(self)
+            if self.isBlack:
+                bpieces.remove(self)
+                bpieces.append(piec[p])
+            else:
+                wpieces.remove(self)
+                wpieces.append(piec[p])
+            promoted = (True, p)
 
-    def move(self, sq, cp=None):
-        global pawnpushed         
-        super().move(sq, cp)
+
+            return
+        
+        sq = sq.split('=')[0]
+
+
+
+        
+        
+        q = Button(WIN, 100, 190, "Queen", (255, 255, 255), autofit=False, fontsize= 15, screensize = (WID, HEI), size = (50, 20))
+        r = Button(WIN, 150, 190, "Rook", (255, 255, 255), autofit=False, fontsize= 15, screensize = (WID, HEI), size = (50, 20))
+        b = Button(WIN, 200, 190, "Bishop", (255, 255, 255), autofit=False, fontsize= 15, screensize = (WID, HEI), size = (50, 20))
+        k = Button(WIN, 250, 190, "Knight", (255, 255, 255), autofit=False, fontsize= 15, screensize = (WID, HEI), size = (50, 20))
+        
+
+        x = True
+        while x:
+            q.draw()
+            r.draw()
+            b.draw()
+            k.draw()
+
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if q.click(pygame.mouse.get_pos()):
+                        pie = queen(sq, self.isBlack)
+                        pieces.append(pie)
+                        wpieces.append(pie)
+                        to = 'Q'
+                        x = False
+                    if r.click(pygame.mouse.get_pos()):
+                        pie = rook(sq, self.isBlack)
+                        pieces.append(pie)
+                        wpieces.append(pie)
+                        to = 'R'
+                        x = False
+                    if b.click(pygame.mouse.get_pos()):
+                        pie = bishop(sq, self.isBlack)
+                        pieces.append(pie)
+                        wpieces.append(pie)
+                        to = 'B'
+                        x = False
+                    if k.click(pygame.mouse.get_pos()):
+                        pie = knight(sq, self.isBlack)
+                        pieces.append(pie)
+                        wpieces.append(pie)
+                        to = 'N'
+                        x = False
+        
+            pygame.display.update()
+        promoted = (True, to)
+        pieces.remove(self)
+        wpieces.remove(self)
+
+    def move(self, sq, cp=None, definitepromote = False):
+        global pawnpushed, last_move, piece_taken
+        sq = str(sq)
+        if sq in self.moves:
+            if sq[0] == 'x':
+                cp = square_occupied(sq[1:3],returnpiece=True)
+                piece_taken = 0
+                
+                if type(self) == pawn and cp == None:
+                    passant = True
+                    cp = square_occupied(sq[1] + str(int(sq[2]) + 1), returnpiece=True) if self.isBlack else square_occupied(sq[1] + str(int(sq[2]) - 1), returnpiece=True)
+                else:
+                    passant = False
+
+                if '1' in sq or '8' in sq:
+                    self.promote(sq, definitepromote)
+                    sq = sq.split('=')[0]
+                
+                last_move = (self, sq, self.square)
+                self.capture(cp)
+                if passant:
+                    self.square = self.square[0] + str(int(self.square[1]) + (-1 if self.isBlack else 1))
+
+                movechange()  
+
+            else:
+                if '1' in sq or '8' in sq:
+                    org = self.square
+                    self.promote(sq, definitepromote)
+                    sq = sq.split('=')[0]
+                    last_move = (self, sq, org)
+
+                    
+                else:
+                    last_move = (self, sq, self.square)
+                    self.square = sq 
+                
+                piece_taken += 0.5
+                movechange()
+        else:
+            raise ValueError(f'Pawn {"takes" if sq[0] == "x" else "to"} {sq[1:3] if sq[0] == "x" else sq}')
+
         pawnpushed = 0
 
 #Rook Class
@@ -666,9 +735,12 @@ class king(piece):
                 self.moves.add('x' + mv)
         
         self.remove_moves()
-        castles(self.isBlack)
+        checkcastle(self.isBlack)
 
     def move(self, sq, cp=None):
+        if sq == 'O-O' or sq == 'O-O-O':
+            castle(not self.isBlack, sq)
+            return
         super().move(sq, cp)
         self.moved = True
 
@@ -690,7 +762,7 @@ class knight(piece):
         ]
         for mv in self.moves:
             if square_occupied(mv, not self.isBlack):
-                self.moves[self.moves.index(mv)] = (mv, '')
+                self.moves[self.moves.index(mv)] = 'x' + mv
 
         self.remove_moves()
 
@@ -747,18 +819,24 @@ def checkforchecks():
     wking.in_check = False
     bking.in_check = False
 
+    for x in pieces:
+        if type(x) is rook and x.square == 'f8':
+            x.check_moves()
+            continue
+        x.check_moves()
+
     if not whites_turn:
         for p in wpieces:
             for mv in p.moves:
                 if mv[0] == 'x':
-                    if mv[0] == bking.square:
+                    if mv[1:3] == bking.square:
                         bking.in_check = True
                         
     else:
         for p in bpieces:
             for mv in p.moves:
                 if mv[0] == 'x':
-                    if mv[0] == wking.square:
+                    if mv[1:3] == wking.square:
                         wking.in_check = True
 
 #Removes illegal moves (Based on checks etc)
@@ -829,51 +907,21 @@ def movechange(passtonotation = ''):
 
 #Checks if move has been made and moves the chosen piece
 def checkmove(clicked_on_piece, pos):
-    global last_move
-
-    if clicked_on_piece == wking:
-        if sqclick('g1', pos) and 'g1p' in wking.moves:
-            wking.square = 'g1'
-            wkrook.square = 'f1'
-            last_move = (wking, 'O-O')
-            movechange()
-            return
-
-    if clicked_on_piece == wking:
-        if sqclick('c1', pos) and 'c1p' in wking.moves:
-            wking.move('c1')
-            wqrook.move('d1')
-            last_move = (wking, 'O-O-O')
-            movechange()
-            return
-
-    if clicked_on_piece == wking:
-        if sqclick('g8', pos) and 'g8p' in wking.moves:
-            wking.move('g8')
-            wkrook.move('f8')
-            last_move = (wking, 'O-O')
-            movechange()
-            return
-        
-    if clicked_on_piece == wking:
-        if sqclick('c8', pos) and 'c8p' in wking.moves:
-            wking.move('c8')
-            wkrook.move('d8')
-            last_move = (wking, 'O-O-O')
-            movechange()
-            return
-            
-
-
     for mv in clicked_on_piece.moves:
-        if mv[-1] == 'p':
-            continue
-        if sqclick(mv[1:3] if mv[0] == 'x' else mv, pos):
+        if mv == 'O-O':  
+            if  sqclick('g1', pos) or sqclick('g8', pos):
+                clicked_on_piece.move(mv)
+                return
+        elif mv == 'O-O-O':
+            if sqclick('c1', pos) or sqclick('c8', pos):
+                clicked_on_piece.move(mv)
+        elif sqclick(mv[1:3] if mv[0] == 'x' else mv[:2], pos):
             clicked_on_piece.move(mv)
             return 
 
 #Checks if either side can castle    
-def castles(color):
+def checkcastle(color):
+    
     castlesqs = {
         False: {
             'pieces': (wking, wqrook, wkrook, bpieces),
@@ -890,7 +938,7 @@ def castles(color):
     selfking, qrook, krook, otherpieces = castlesqs[color]['pieces']
     result = [False, False]
 
-    if not selfking.moved and not krook.moved:
+    if not selfking.moved and not krook.moved and krook in pieces:
         for x in castlesqs[color]['kside']:
             if square_occupied(x):
                 break
@@ -906,7 +954,7 @@ def castles(color):
             else:
                 result[0] = True
     
-    if not selfking.moved and not qrook.moved:
+    if not selfking.moved and not qrook.moved and qrook in pieces:
         for x in castlesqs[color]['qside']:
             if square_occupied(x):
                 break
@@ -925,10 +973,43 @@ def castles(color):
                 result[1] = True
 
     if result[0]:
-        selfking.moves.add(castlesqs[color]['kside'][1] + "p")
+        selfking.moves.add('O-O')
     if result[1]:
-        selfking.moves.add(castlesqs[color]['qside'][1] + "p")
-        
+        selfking.moves.add('O-O-O')
+
+def castle(wturn, mv):
+    global last_move
+    if mv == 'O-O':
+        if wturn == True:
+            wking.square = 'g1'
+            wkrook.square = 'f1'
+            wking.moved = True
+            wkrook.moved = True
+            last_move = (wking, 'O-O')
+            movechange()
+        else:
+            bking.square = 'g8'
+            bkrook.square = 'f8'
+            bking.moved = True
+            bkrook.moved = True
+            last_move = (bking, 'O-O')
+            movechange()
+    elif mv == 'O-O-O':
+        if wturn == True:
+            wking.square = 'c1'
+            wqrook.square = 'd1'
+            wking.moved = True
+            wqrook.moved = True
+            last_move = (wking, 'O-O-O')
+            movechange()
+        else:
+            bking.square = 'c8'
+            bqrook.square = 'd8'
+            bking.moved = True
+            bqrook.moved = True
+            last_move = (bking, 'O-O-O')
+            movechange()
+
 #Writes Notation
 def notation(**kwargs):
     checkforchecks()
@@ -987,7 +1068,7 @@ def notationhelp():
             
     return ''
 
-  
+#Turns notation to a move
 def notationtomove(move):
     move = str(move)
     pis = {
@@ -996,38 +1077,98 @@ def notationtomove(move):
         'B': bishop,
         'R': rook,
         'Q': queen,
-
-
     }
-    move.removesuffix('+')
-    move.removesuffix('#')
+    if whites_turn:
+        selfpieces = wpieces.copy()
+    else:
+        selfpieces = bpieces.copy()
+
+    move = move.removesuffix('+')
+    move = move.removesuffix('#')
 
     length = len(move)
+    #e4
     if length == 2:
-        for x in pieces:
+        for x in selfpieces:
             if type(x) is pawn and move in x.moves:
                 x.move(move)
+                return
 
+    # Nc3
     elif length == 3:
+        if move == 'O-O':
+            if whites_turn:
+                wking.move(move)
+                return
+            else:
+                bking.move(move)           
+                return 
+                
         pt = pis[move[0]]
-        for x in pieces:
-            if type(x) == pt and move in x.moves:
-                x.move(move)
+        for x in selfpieces:
+            if type(x) == pt and move[1:] in x.moves:
+                x.move(move[1:])
+                return
 
-    if length == 4:
-        if move[0].islower():
-            for x in pieces:
+    #Nge2, Nxe3, exd5, e8=Q
+    elif length == 4:
+        if '=' in move:
+            for x in selfpieces:
+                if type(x) is pawn and move in x.moves:
+                    x.move(move, definitepromote=True)
+                    return
+
+        elif move[0].islower():
+            for x in selfpieces:
                 if type(x) is pawn and x.square[0] == move[0] and move[1:] in x.moves:
                     x.move(move[1:])
+                    return
 
         else:
             pt = pis[move[0]]
-            for x in pieces:
-                if type(x) is pt and move[1:] in x.moves:
-                    x.move(move[1:])
-                      
+            if move[1] == 'x':
+                for x in selfpieces:
+                    if type(x) is pt and move[1:] in x.moves:
+                        x.move(move[1:])
+                        return
+            else:
+                for x in selfpieces:
+                    if type(x) is pt and move[2:] in x.moves and move[1] in x.square:
+                        x.move(move[2:])
+                        return
+    #Be2d3
+    elif length == 5:
+        if move == 'O-O-O':
+            if whites_turn:
+                wking.move(move)
+                return
+            else:
+                bking.move(move)    
+                return
+        else:
+            pt = pis[move[0]]
+            for x in selfpieces:
+                if type(x) is pt and move[3:] in x.moves and move[1:3] == x.square:
+                    x.move(move[3:])
+                    return
+    elif length == 6:
+        if '=' in move:
+            for x in selfpieces:
+                if type(x) is pawn and x.square[0] == move[0] and move[1:] in x.moves:
+                    x.move(move[1:], definitepromote=True)
+                    return
+        else:
+            pt = pis[move[0]]
+            for x in selfpieces:
+                if type(x) is pt and move[3:] in x.moves and move[1:3] == x.square:
+                    x.move(move[3:])
+                    return
+    
+    
+    raise ValueError(move + " is an invalid/illegal move")                  
+
 # Main game loop
-def main(notation = False):
+def main():
     global wpieces, bpieces, pieces, bking, wking, wkrook, wqrook, bkrook, bqrook
     global clicked_on_piece, whites_turn, movesdone, last_move
     global whitewantsdraw, blackwantsdraw, promoted
@@ -1110,8 +1251,7 @@ def main(notation = False):
     bpieces = [x for x in pieces if x.isBlack]
 
     def redraw():
-        global clicked_on_piece, whites_turn, whitewantsdraw, blackwantsdraw
-        nonlocal draw
+        global whitewantsdraw, blackwantsdraw
         
         #Board Initialization
         board()
@@ -1128,15 +1268,7 @@ def main(notation = False):
 
         drawblack.color = (125, 125, 125)
         drawwhite.color = (125, 125, 125)
-        checkforchecks()
-        draw = checkdraw()
-        if draw[0]:
-            menu('DRAW BY ' + draw[1].upper())
-        if whites_turn:
-            setlegalmoves('white')
-        else:
-            setlegalmoves('black')
-        
+
             
         wtimelabel = main_font.render(tomins(round(wtime)), 1, (255, 255, 255))
         btimelabel = main_font.render(tomins(round(btime)), 1, (255, 255, 255))
@@ -1163,39 +1295,24 @@ def main(notation = False):
         resignwhite.draw()
         drawblack.draw()
         drawwhite.draw()
- 
-        #Event Checking
-        pos = pygame.mouse.get_pos()
-        for event in pygame.event.get():
-                if event.type==pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    for x in pieces:
-                        if x.click(pos):
-                            if whites_turn != x.isBlack:
-                                clicked_on_piece = x
-                    if clicked_on_piece != None:
-                        checkmove(clicked_on_piece, pos)
-                    if resignblack.click(pos):
-                        if resignblack.text == "Resign":
-                            menu('White wins by resignation')
-                        else:
-                            menu('Game Aborted')
-                    if resignwhite.click(pos):
-                        if resignwhite.text == "Resign":
-                            menu('Black wins by resignation')
-                        else:
-                            menu('Game Aborted')  
-                    if drawwhite.click(pos):
-                        whitewantsdraw = True
-                    if drawblack.click(pos):
-                        blackwantsdraw = True
+        pygame.display.update()
 
+    if pl_color == 1: flip(False)
+    else: flip(True)
 
     while run:
         clock.tick(60)
+
+        wpieces = [x for x in pieces if not x.isBlack]
+        bpieces = [x for x in pieces if x.isBlack]
         
+        redraw()
+
+
+        if whites_turn == pl_color:
+             notationtomove(input('Move: '))
+             continue
+
         if whites_turn:
             wtime -= 1/76
             if wtime <= 0:
@@ -1214,12 +1331,46 @@ def main(notation = False):
                     draw = (True, "")
                     menu('IN. MATERIAL VS TIMEOUT')
 
-        redraw()
-        wpieces = [x for x in pieces if not x.isBlack]
-        bpieces = [x for x in pieces if x.isBlack]
+        if type(square_occupied('a8', returnpiece=True)) is queen:
+            checkforchecks()
+        else:
+            checkforchecks()
+        draw = checkdraw()
+        if draw[0]:
+            menu('DRAW BY ' + draw[1].upper())
+        if whites_turn:
+            setlegalmoves('white')
+        else:
+            setlegalmoves('black')
             
-        pygame.display.update()
-
+        #Event Checking
+        pos = pygame.mouse.get_pos()
+        for event in pygame.event.get():
+            if event.type==pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                for x in pieces:
+                    if x.click(pos):
+                        if whites_turn != x.isBlack:
+                            clicked_on_piece = x
+                if clicked_on_piece != None:
+                    checkmove(clicked_on_piece, pos)
+                if resignblack.click(pos):
+                    if resignblack.text == "Resign":
+                        menu('White wins by resignation')
+                    else:
+                        menu('Game Aborted')
+                if resignwhite.click(pos):
+                    if resignwhite.text == "Resign":
+                        menu('Black wins by resignation')
+                    else:
+                        menu('Game Aborted')  
+                if drawwhite.click(pos):
+                    whitewantsdraw = True
+                if drawblack.click(pos):
+                    blackwantsdraw = True
+        
 #Menu screen
 def menu(res, start=False, loggedin = False):
     global run, file
@@ -1291,7 +1442,7 @@ def menu(res, start=False, loggedin = False):
                     if export.click(pygame.mouse.get_pos()):
                         path = os.path.join('C:\\Users\\darsh\\Downloads', 'game.pgn')
                         with open(path, 'w')as f:
-                            f.writelines([f'[Won By "{getword(res, -1).capitalize()}"]\n', '[White ""]\n', '[Black ""]\n', f'[Result "{result}"]\n'])
+                            f.writelines([f'[Won By "{getword(res, -1).capitalize() if "INSUFFICIENT" not in res else "INSUFFICIENT MATERIAL"}"]\n', '[White ""]\n', '[Black ""]\n', f'[Result "{result}"]\n'])
                             for x in file:
                                 f.write(x + ' ')
                             f.write('\n' + result)
@@ -1378,4 +1529,9 @@ def login(createmenu = False):
                 if back.click(pygame.mouse.get_pos()):
                     menu("", True)
 
-menu("", True)
+try:
+    menu("", True)
+except Exception as e:
+    log = open('log.txt', 'w')
+    log.write(str(e))
+    log.close()
