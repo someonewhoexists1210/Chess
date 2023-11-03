@@ -1,0 +1,1 @@
+This folder stores all of your exported games as a .pgn file. Open these in chess softwares to view game
